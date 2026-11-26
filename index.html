@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <style>
-    /* Keep the application frame fixed; long screens scroll inside the active module. */
+    /* Fixed app frame: module pages switch in-place instead of moving down a long page. */
     html, body { width: 100%; height: 100%; min-height: 0; margin: 0; overflow: hidden; }
     body { height: 100vh; height: 100dvh; overscroll-behavior: none; }
     .app-shell { width: 100%; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
@@ -18,6 +18,8 @@
     .main-area { height: 100vh; height: 100dvh; min-height: 0; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
     .topbar, .app-footer { flex: 0 0 auto; }
     .page-content { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }
+    .page-content.module-changing { animation: module-enter .18s ease-out; }
+    @keyframes module-enter { from { opacity: .7; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
     .modal-backdrop { overflow-y: auto; overscroll-behavior: contain; }
     .modal { max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain; }
     @media (max-width: 700px) {
@@ -25,6 +27,7 @@
       .main-area { width: 100%; }
       .page-content { scrollbar-gutter: auto; }
     }
+    @media (prefers-reduced-motion: reduce) { .page-content.module-changing { animation: none; } }
   </style>
 </head>
 <body>
@@ -54,5 +57,37 @@
   <div class="toast" id="toast" role="status"></div>
   <div class="modal-backdrop" id="modal-backdrop" hidden><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button class="modal-close" id="modal-close" aria-label="Close dialog">×</button><div id="modal-content"></div></section></div>
   <script src="app.js"></script>
+  <script>
+    // Treat each workspace module as its own addressable app screen. Hash routing
+    // also makes browser Back/Forward work without turning the shell into a page.
+    (() => {
+      const routes = new Set(['dashboard', 'market', 'orders', 'health', 'hub', 'opportunities']);
+      const content = document.getElementById('page-content');
+      function showRoute(route) {
+        if (!routes.has(route)) route = 'dashboard';
+        if (typeof changeView === 'function') changeView(route);
+        if (content) {
+          content.scrollTop = 0;
+          content.classList.remove('module-changing');
+          void content.offsetWidth;
+          content.classList.add('module-changing');
+        }
+        document.getElementById('sidebar')?.classList.remove('open');
+      }
+      document.addEventListener('click', event => {
+        const moduleButton = event.target.closest('[data-view]');
+        if (!moduleButton || !routes.has(moduleButton.dataset.view)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const route = moduleButton.dataset.view;
+        if (location.hash === `#${route}`) showRoute(route);
+        else location.hash = route;
+      }, true);
+      window.addEventListener('hashchange', () => showRoute(location.hash.slice(1)));
+      const initialRoute = location.hash.slice(1);
+      if (initialRoute && routes.has(initialRoute)) showRoute(initialRoute);
+      else if (!location.hash) history.replaceState(null, '', '#dashboard');
+    })();
+  </script>
 </body>
 </html>
